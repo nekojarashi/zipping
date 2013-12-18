@@ -1,21 +1,49 @@
 zipping
 =======
 
-Ruby Gem for sending "on the fly" zipping data to any output stream.
+This gem is for compressing files as a zip and outputting to a stream (or a stream-like interface object). The output to a stream proceeds little by little, as files are compressed.
 
-== Contributing to zipping
- 
-* Check out the latest master to make sure the feature hasn't been implemented or the bug hasn't been fixed yet.
-* Check out the issue tracker to make sure someone already hasn't requested it and/or contributed it.
-* Fork the project.
-* Start a feature/bugfix branch.
-* Commit and push until you are happy with your contribution.
-* Make sure to add tests for it. This is important so I don't break it in a future version unintentionally.
-* Please try not to mess with the Rakefile, version, or history. If you want to have your own version, or is otherwise necessary, that is fine, but please isolate to its own commit so I can cherry-pick around it.
+Usage is simple:
 
-== Copyright
+    require 'zipping'
 
-Copyright (c) 2013 nekojarashi. See LICENSE.txt for
-further details.
+    Zipping.files_to_zip my_stream, '/path/to/file'
 
+You can pass multiple files.
 
+    Zipping.files_to_zip my_stream2, ['/path/to/file', '/another/path']
+
+If you pass a folder, zipping compresses all files in the folder.
+
+    Zipping.files_to_zip my_stream3, ['/path/to/folder', '/path/to/other/file']
+
+For example, you have files below:
+
+    /text/foo.txt
+    /text/bar/baz.txt
+    /images/abc.png
+
+and you run command:
+
+    file = File.open '/my.zip', 'wb'
+    Zipping.files_to_zip file, ['/text', '/images/abc.png']
+    file.close
+
+Then, you get a zip file, and you find entries below in it.
+
+    text/
+    text/foo.txt
+    text/bar/
+    text/bar/baz.txt
+    abc.png
+
+To get binary data of zip instead of saving as a file, prepare an 'ASCII-8bit'-encoded empty String object.
+
+    zip_data = ''.force_encoding('ASCII-8bit')
+    Zipping.files_to_zip zip_data, ['/text', '/images/abc.png']
+
+Then, you get zip binary data in `zip_data`.
+
+---
+
+Copyright (c) 2013 nekojarashi.
