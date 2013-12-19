@@ -10,7 +10,7 @@ Gem::Specification.new do |spec|
   spec.email         = ["info@nekojarashi.com.com"]
   spec.description   = "This gem is for compressing files as a zip and outputting to a stream (or a stream-like interface object). The output to a stream proceeds little by little, as files are compressed."
   spec.summary       = "Compress files as a zip and output it to a stream."
-  spec.homepage      = "http://www.nekojarashi.com"
+  spec.homepage      = "https://github.com/nekojarashi/zipping"
   spec.license       = "MIT"
 
   spec.files         = `git ls-files`.split($/)
