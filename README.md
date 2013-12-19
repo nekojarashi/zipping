@@ -1,5 +1,6 @@
 zipping
 =======
+[![Gem Version](https://badge.fury.io/rb/zipping.png)](http://badge.fury.io/rb/zipping)
 
 This gem is for compressing files as a zip and outputting to a stream (or a stream-like interface object). The output to a stream proceeds little by little, as files are compressed.
 
