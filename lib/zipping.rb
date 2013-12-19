@@ -103,7 +103,8 @@ module Zipping
       return nil unless path.is_a?(String) && File.exists?(path)
       ret = {
         :path => path,
-        :name => File.basename(path)
+        :name => File.basename(path),
+        :time => Time.now
       }
     end
 
@@ -173,7 +174,7 @@ module Zipping
     # Pack file entities and output to stream. Directory entities are not packed but stored.
     def pack_file_entities(o = @o, files = @f, dir = @current_dir, dirs = @pending_dirs, data_positions = @dp, encoding = @e, file_division_size = @s)
       files.each do |file|
-        next unless file.is_a?(Hash) && file[:path].present?
+        next unless file.is_a?(Hash) && file[:path]
 
         f = file[:path]
         if File.directory? f
@@ -424,11 +425,11 @@ module Zipping
             next
           end
         elsif file.is_a? Hash
-          next unless file[:path].present? && file[:path].is_a?(String)
+          next unless file[:path] && file[:path].is_a?(String)
           entry = file
           path = entry[:path]
-          entry[:name] = File.basename(path) unless entry[:name].present? && entry[:name].is_a?(String)
-          entry[:time] = File.mtime(path) unless entry[:time].present? && entry[:time].is_a?(Time)
+          entry[:name] = File.basename(path) unless entry[:name] && entry[:name].is_a?(String)
+          entry[:time] = File.mtime(path) unless entry[:time] && entry[:time].is_a?(Time)
         else
           next
         end
