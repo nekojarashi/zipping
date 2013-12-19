@@ -1,21 +1,36 @@
 zipping
 =======
+[![Gem Version](https://badge.fury.io/rb/zipping.png)](http://badge.fury.io/rb/zipping)
 
 This gem is for compressing files as a zip and outputting to a stream (or a stream-like interface object). The output to a stream proceeds little by little, as files are compressed.
 
-Usage is simple:
+Getting Started
+--
+Add the following line to your Gemfile:
 
-    require 'zipping'
+    gem 'zipping'
 
-    Zipping.files_to_zip my_stream, '/path/to/file'
+Usage
+--
+simple:
+
+```ruby
+require 'zipping'
+
+Zipping.files_to_zip my_stream, '/path/to/file'
+```
 
 You can pass multiple files.
 
-    Zipping.files_to_zip my_stream2, ['/path/to/file', '/another/path']
+```ruby
+Zipping.files_to_zip my_stream2, ['/path/to/file', '/another/path']
+```
 
 If you pass a folder, zipping compresses all files in the folder.
 
-    Zipping.files_to_zip my_stream3, ['/path/to/folder', '/path/to/other/file']
+```ruby
+Zipping.files_to_zip my_stream3, ['/path/to/folder', '/path/to/other/file']
+```
 
 For example, you have files below:
 
@@ -25,9 +40,11 @@ For example, you have files below:
 
 and you run command:
 
-    file = File.open '/my.zip', 'wb'
-    Zipping.files_to_zip file, ['/text', '/images/abc.png']
-    file.close
+```ruby
+file = File.open '/my.zip', 'wb'
+Zipping.files_to_zip file, ['/text', '/images/abc.png']
+file.close
+```
 
 Then, you get a zip file, and you find entries below in it.
 
@@ -39,11 +56,17 @@ Then, you get a zip file, and you find entries below in it.
 
 To get binary data of zip instead of saving as a file, prepare an 'ASCII-8bit'-encoded empty String object.
 
-    zip_data = ''.force_encoding('ASCII-8bit')
-    Zipping.files_to_zip zip_data, ['/text', '/images/abc.png']
+```ruby
+zip_data = ''.force_encoding('ASCII-8bit')
+Zipping.files_to_zip zip_data, ['/text', '/images/abc.png']
+```
 
 Then, you get zip binary data in `zip_data`.
 
+Notice
+--
+With older(<1.0.0) rubyzip, use 0.2.0.
+
 ---
 
-Copyright (c) 2013 nekojarashi.
+Copyright (c) 2013 [Nekojarashi Inc.](http://www.nekojarashi.com)
