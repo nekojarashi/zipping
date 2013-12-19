@@ -1,5 +1,5 @@
 # -*- encoding: utf-8 -*-
-require 'rubygems'
+require "zipping/version"
 require 'zip'
 
 module Zipping
