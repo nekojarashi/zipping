@@ -65,4 +65,4 @@ Then, you get zip binary data in `zip_data`.
 
 ---
 
-Copyright (c) 2013 [Nekojarashi Inc.](http://www.nekojarashi.com)
+Copyright (c) [Nekojarashi Inc.](http://www.nekojarashi.com)
