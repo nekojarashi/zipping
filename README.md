@@ -63,10 +63,6 @@ Zipping.files_to_zip zip_data, ['/text', '/images/abc.png']
 
 Then, you get zip binary data in `zip_data`.
 
-Notice
---
-With older(<1.0.0) rubyzip, use 0.2.0.
-
 ---
 
 Copyright (c) 2013 [Nekojarashi Inc.](http://www.nekojarashi.com)
