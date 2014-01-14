@@ -49,3 +49,6 @@ pkg
 #*.rbc
 
 /.DS_Store
+
+# For Gem
+/Gemfile.lock

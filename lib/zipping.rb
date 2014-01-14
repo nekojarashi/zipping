@@ -31,23 +31,10 @@ module Zipping
   # API methods
   #
 
-  def self.files_to_zip(output_stream, files, encoding = :utf8, file_division_size = 1048576)
-    builder = ZipBuilder.new output_stream, files, encoding, file_division_size
+  def self.files_to_zip(output_stream, files, file_division_size = 1048576, encoding = :utf8)
+    builder = ZipBuilder.new output_stream, files, file_division_size, encoding
     builder.pack
   end
-
-  # Deprecated.
-  # Recommended to use 'files_to_zip' instead.
-  def self.directory_to_zip(output_stream, target_path, usesjis = true, file_division_size = 1048576)
-    self.create_zip_file_with_files_and_directories(output_stream, target_path, usesjis, file_division_size)
-  end
-
-  # Deprecated.
-  # Recommended to use 'files_to_zip' instead.
-  def self.file_to_zip(output_stream, target_path, usesjis = false, file_division_size = 1048576)
-    self.create_zip_file_with_files_and_directories(output_stream, target_path, usesjis, file_division_size)
-  end
-
 
 
   #
@@ -71,7 +58,7 @@ module Zipping
 
     # Initialize ZipBuilder.
     # 'files' must be a String(file or directory path), a Hash(entity), or an Array of Strings and/or Hashes.
-    def initialize(output_stream, files, encoding = :utf8, file_division_size = 1048576)
+    def initialize(output_stream, files, file_division_size = 1048576, encoding = :utf8)
       @o = output_stream
       @f = ZipBuilder.to_entities files
       @e = encoding
