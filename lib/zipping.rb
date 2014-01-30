@@ -164,6 +164,7 @@ module Zipping
         next unless file.is_a?(Hash) && file[:path]
 
         f = file[:path]
+        next if File.symlink? f
         if File.directory? f
           dirs << file
           next
@@ -270,6 +271,7 @@ module Zipping
     # Pack files and output to stream. Directories are not packed but stored.
     def pack_files(o, files, dir, dirs = @pending_dirs, data_positions = @dp, encoding = @e, file_division_size = @s)
       files.each do |f|
+        next if File.symlink? f
         if File.directory? f
           dirs << {
             :path => f,
