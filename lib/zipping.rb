@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 require "zipping/version"
 require 'zip'
+require 'pathname'
 
 module Zipping
 
@@ -47,6 +48,7 @@ module Zipping
     builder = ZipBuilder.new output_stream, file_division_size, encoding
     builder.pack files
     builder.close
+    output_stream
   end
 
   # use if you need to make File directly.
@@ -90,12 +92,9 @@ module Zipping
     # Initialize ZipBuilder.
     # 'files' must be a String(file or directory path), a Hash(entity), or an Array of Strings and/or Hashes.
     def initialize(output_stream, file_division_size = 1048576, encoding = :utf8)
-      @output_stream = output_stream
-      raise Error, 'Specified output stream does not support `<<\' method.' unless @output_stream.respond_to? :<<
-      @o = StreamMeter.new output_stream
+      @w = Writer.new output_stream, file_division_size
       @e = encoding
-      @s = file_division_size
-      raise Error, 'Bad file_division_size' unless @s.is_a?(Integer) && @s > 0
+      @l = []
     end
 
     ### Attr controls
@@ -103,7 +102,6 @@ module Zipping
     def reset_state
       @pending_dirs = []
       @current_dir = {name: '', time: Time.now}
-      @dp = []
     end
 
     def has_dir?
@@ -119,6 +117,11 @@ module Zipping
       @pending_dirs << dir
     end
 
+    def postpone_symlink(link)
+      link[:abs_path] = abs_path_for link[:name] || File.basename(link[:path])
+      @l << link
+    end
+
     def cd(dir)
       @current_dir = dir
     end
@@ -131,63 +134,19 @@ module Zipping
       root_dir? ? '' : @current_dir[:abs_path]
     end
 
+    def current_dir_entity
+      @current_dir
+    end
+
     def abs_path_for(name)
       root_dir? ? name : (@current_dir[:abs_path] + '/' + name)
     end
 
-    def reset_stream_meter
-      @o = StreamMeter.new @output_stream
-    end
-
-    def current_position
-      @o.size
-    end
-
-    def remember_entry_info(dp = nil)
-      @dp << (dp || @fixed_entity.merge(@write_result))
-
-      ## fixed_entity
-      # :filetime => Zip::DOSTime,
-      # :binary_name => String,
-
-      ## write_result
-      # :offset => Integer,
-      # :crc => Integer,
-      # :complen => Integer,
-      # :uncomplen => Integer
-    end
-
-    def each_entry_info
-      @dp.each{|dp| yield dp} if block_given?
+    def abs_path_for_entity(entity)
+      abs_path_for entity[:name] || File.basename(entity[:path])
     end
 
     ### Conversions
-
-    # Create an Array of entity Hashes.
-    def self.to_entities(files)
-      if files.is_a? Hash
-        [files]
-      elsif files.is_a? String
-        [ZipBuilder.to_entity(files)].delete_if &:nil?
-      elsif files.is_a? Array
-        ret = []
-        files.each{|f| ret << ZipBuilder.to_entity(f)}
-        ret.delete_if &:nil?
-      else
-        []
-      end
-    end
-
-    # Create an entity Hash with a path String
-    def self.to_entity(path)
-      return path if path.is_a?(Hash)
-      return nil unless path.is_a?(String) && File.exists?(path)
-      ret = {
-        :path => path,
-        :name => File.basename(path),
-        :time => Time.now
-      }
-    end
 
     # Get entities of files in dir
     def subdir_entities(dir = @current_dir)
@@ -196,11 +155,21 @@ module Zipping
 
     # Fix an entity: time -> DOSTime object, name -> abs path in zip & encoded
     def fix_entity(entity)
-      @fixed_entity = {
+      {
         path: entity[:path],
         filetime: Zip::DOSTime.at(entity[:time] || File.mtime(entity[:path])),
-        binary_name: string_to_bytes(abs_path_for(entity[:name] || File.basename(entity[:path])))
+        binary_name: string_to_bytes(abs_path_for_entity(entity)),
+        zip_path: abs_path_for_entity(entity)
       }
+    end
+
+    def fix_current_dir_entity
+      fix_entity(@current_dir).merge!(
+        {
+          binary_name: string_to_bytes(@current_dir[:abs_path] + '/'),
+          zip_path: @current_dir[:abs_path]
+        }
+      )
     end
 
     # Create ASCII-8bits string. Also convert encoding if needed.
@@ -220,7 +189,7 @@ module Zipping
 
     # Pack file and directory entities and output to stream.
     def pack(files)
-      entities = ZipBuilder.to_entities files
+      entities = Entity.entities_from files
       return if entities.empty?
 
       reset_state
@@ -233,18 +202,25 @@ module Zipping
 
     # Pack a directory
     def pack_current_dir
+      pack_current_directory_entity
       pack_entities subdir_entities
+    end
+
+    # Pack symlinks if its link path exists in zip
+    def pack_symlinks
+      reset_state
+      @l.each do |link|
+        if @w.path_exists? Entity.linked_path(link[:abs_path], File.readlink(link[:path]))
+          link[:name] = link[:abs_path]
+          pack_symbolic_link_entity link
+        end
+      end
     end
 
     # Create central directories
     def close
-      # start of central directories
-      @header_offset = current_position
-      write_central_dir_headers
-
-      # total size of central directories
-      @header_size = current_position - @header_offset
-      write_end_central_dir_header
+      pack_symlinks
+      @w.close
     end
 
     # Pack file entities. Directory entities are queued, not packed in this method.
@@ -255,7 +231,7 @@ module Zipping
 
         path = entity[:path]
         if File.symlink? path
-          pack_symbolic_link_entity entity
+          postpone_symlink entity
         elsif File.directory? path
           postpone_dir entity
         elsif File.file? path
@@ -266,77 +242,113 @@ module Zipping
 
     def pack_file_entity(entity)
       pack_entity entity do
-        write_file_entry
+        @w.write_file_entry
       end
     end
 
     def pack_symbolic_link_entity(entity)
       pack_entity entity do
-        write_symbolic_link_entry
+        @w.write_symbolic_link_entry
       end
     end
 
-    def pack_directory_entity(entity)
-      pack_entity entity do
-        write_directory_entry
-      end
+    def pack_current_directory_entity
+      @w.load_entity fix_current_dir_entity
+      @w.write_directory_entry
     end
 
     def pack_entity(entity)
-      fix_entity entity
+      @w.load_entity fix_entity entity
       yield
-      remember_entry_info
+    end
+  end
+
+  class Writer
+
+    def initialize(output_stream, file_division_size)
+      @output_stream = output_stream
+      raise Error, 'Specified output stream does not support `<<\' method.' unless @output_stream.respond_to? :<<
+      @o = StreamMeter.new output_stream
+      @s = file_division_size
+      raise Error, 'Bad file_division_size' unless @s.is_a?(Integer) && @s > 0
+      @dps = []
+      @entries = []
     end
 
+    ### Data interface
 
-    ## Write methods
+    def load_entity(entity)
+      @fixed_entity = entity
+      @entries << entity[:zip_path]
+    end
 
-    # Write file entry
+    def path_exists?(abs_path)
+      @entries.include? abs_path
+    end
+
+    ### Write operations
+
     def write_file_entry
       write_entry do |path, filetime, name|
-
-        # write header
-        @o << PKHeader.pk0304(filetime, name.length, true).pack('VvvvvvVVVvv')
-        @o << name
-
-        # write deflated data
-        meter = StreamMeter.new @o
-        deflater = Zip::Deflater.new meter
-        File.open(path, 'rb'){|f| pipe_little_by_little deflater, f}
-        deflater.finish
-
-        # write trailer
-        @o << PKHeader.pk0708(deflater.crc, meter.size, deflater.size).pack('VVVV')
-
-        {
-          crc: deflater.crc,
-          complen: meter.size,
-          uncomplen: deflater.size,
-          deflated: true
-        }
+        write PKHeader.pk0304(filetime, name.length, true).pack('VvvvvvVVVvv'), name
+        ret = deflate_file path
+        write PKHeader.pk0708(ret[:crc], ret[:complen], ret[:uncomplen]).pack('VVVV')
+        ret
       end
     end
 
-    # Write dir entry
     def write_directory_entry
       write_entry_without_compress '', :dir
     end
 
-    # Write symbolic link entry
     def write_symbolic_link_entry
       write_entry_without_compress File.readlink(@fixed_entity[:path]), :symlink
+    end
+
+    def close
+      # start of central directories
+      @header_offset = current_position
+      write_central_dir_headers
+
+      # total size of central directories
+      @header_size = current_position - @header_offset
+      write_end_central_dir_header
+    end
+
+    ### Internal methods
+    private
+
+    def write(*args)
+      args.each do |content|
+        @o << content
+      end
+    end
+
+    def current_position
+      @o.size
     end
 
     def pipe_little_by_little(o, i)
       o << i.read(@s) until i.eof?
     end
 
+    def deflate_file(path)
+      meter = StreamMeter.new @o
+      deflater = Zip::Deflater.new meter
+      File.open(path, 'rb'){|f| pipe_little_by_little deflater, f}
+      deflater.finish
+      {
+        crc: deflater.crc,
+        complen: meter.size,
+        uncomplen: deflater.size,
+        deflated: true
+      }
+    end
+
     def write_entry_without_compress(data, type)
       write_entry do |path, filetime, name|
         crc = Zlib.crc32 data
-        @o << PKHeader.pk0304(filetime, name.length, false, crc, data.size, data.size).pack('VvvvvvVVVvv')
-        @o << name
-        @o << data
+        write PKHeader.pk0304(filetime, name.length, false, crc, data.size, data.size).pack('VvvvvvVVVvv'), name, data
         {
           type: type,
           crc: crc,
@@ -347,22 +359,56 @@ module Zipping
     end
 
     def write_entry
-      offset = current_position
-      write_result = yield @fixed_entity[:path], @fixed_entity[:filetime], @fixed_entity[:binary_name] if block_given?
-      @write_result = write_result.merge({offset: offset, binary_name: @fixed_entity[:binary_name]})
+      remember_entry_info current_position, yield(@fixed_entity[:path], @fixed_entity[:filetime], @fixed_entity[:binary_name])
     end
 
-    # Write central directories.
-    def write_central_dir_headers(o = @o, data_positions = @dp)
-      data_positions.each do |dp|
-        o << PKHeader.pk0102(dp).pack('VvvvvvvVVVvvvvvVV')
-        o << dp[:binary_name]
+    def remember_entry_info(offset, write_result)
+      @dps << @fixed_entity.merge!(write_result).merge!({offset: offset})
+    end
+
+    def write_central_dir_headers
+      @dps.each do |dp|
+        write PKHeader.pk0102(dp).pack('VvvvvvvVVVvvvvvVV'), dp[:binary_name]
       end
     end
 
-    # Write end of central directory.
-    def write_end_central_dir_header(o = @o, entry_count = @dp.length, dirsize = @header_size, offset = @header_offset)
-      o << PKHeader.pk0506(entry_count, dirsize, offset).pack('VvvvvVVv')
+    def write_end_central_dir_header
+      write PKHeader.pk0506(@dps.length, @header_size, @header_offset).pack('VvvvvVVv')
+    end
+  end
+
+  class Entity
+    def self.entities_from(files)
+      if files.is_a? Array
+        entities_from_array files
+      else
+        [entity_from(files)]
+      end
+    end
+
+    # Create an entity Hash with a path String
+    def self.entity_from(ent)
+      if ent.is_a?(Hash) && File.exists?(ent[:path])
+        ent
+      elsif ent.is_a?(String) && File.exists?(ent)
+        entity_from_path ent
+      end
+    end
+
+    def self.entities_from_array(arr)
+      arr.map{|ent| entity_from ent}.delete_if(&:nil?)
+    end
+
+    def self.entity_from_path(path)
+      {
+        :path => path,
+        :name => File.basename(path),
+        :time => File.mtime(path)
+      }
+    end
+
+    def self.linked_path(abs_path, link)
+      (Pathname.new(abs_path).parent + link).expand_path('/').to_s[1..-1]
     end
   end
 
