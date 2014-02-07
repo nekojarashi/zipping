@@ -113,13 +113,16 @@ module Zipping
     end
 
     def postpone_dir(dir)
-      dir[:abs_path] = abs_path_for dir[:name] || File.basename(dir[:path])
-      @pending_dirs << dir
+      queue_entity dir, @pending_dirs
     end
 
     def postpone_symlink(link)
-      link[:abs_path] = abs_path_for link[:name] || File.basename(link[:path])
-      @l << link
+      queue_entity link, @l
+    end
+
+    def queue_entity(entity, queue)
+      entity[:abs_path] = abs_path_for entity[:name] || File.basename(entity[:path])
+      queue << entity
     end
 
     def cd(dir)
