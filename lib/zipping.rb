@@ -153,7 +153,7 @@ module Zipping
 
     # Get entities of files in dir
     def subdir_entities(dir = @current_dir)
-      Dir.glob(dir[:path] + '/*').map!{|path| {path: path, time: File.mtime(path), name: File.basename(path)}}
+      Dir.glob(dir[:path].gsub(/[*?\\\[\]{}]/, '\\\\\0') + '/*').map!{|path| {path: path, time: File.mtime(path), name: File.basename(path)}}
     end
 
     # Fix an entity: time -> DOSTime object, name -> abs path in zip & encoded
