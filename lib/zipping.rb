@@ -79,7 +79,7 @@ module Zipping
       @crc = Zlib.crc32
     end
     def << (data)
-      @size += data.length
+      @size += data.bytesize
       @crc = Zlib.crc32 data, @crc
       @output_stream << data
     end
