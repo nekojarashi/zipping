@@ -180,7 +180,8 @@ module Zipping
       unless @e.nil? || @e == :utf8
         if @e == :shift_jis
           begin
-            str = str.encode 'Shift_JIS', :invalid => :replace, :undef => :replace, :replace => '??'
+            str = str.gsub /[\\:*?"<>|\uff5e]/, '？'
+            str.encode! 'Shift_JIS', :invalid => :replace, :undef => :replace, :replace => '？'
           rescue => e
           end
         end
