@@ -1,6 +1,9 @@
 # -*- encoding: utf-8 -*-
 require "zipping/version"
-require 'zip'
+require "zipping/dos_time"
+require "zipping/deflater"
+
+require "zlib"
 require 'pathname'
 
 module Zipping
@@ -160,7 +163,7 @@ module Zipping
     def fix_entity(entity)
       {
         path: entity[:path],
-        filetime: Zip::DOSTime.at(entity[:time] || File.mtime(entity[:path])),
+        filetime: DOSTime.new(entity[:time] || File.mtime(entity[:path])),
         binary_name: string_to_bytes(abs_path_for_entity(entity)),
         zip_path: abs_path_for_entity(entity)
       }
@@ -338,7 +341,7 @@ module Zipping
 
     def deflate_file(path)
       meter = StreamMeter.new @o
-      deflater = Zip::Deflater.new meter
+      deflater = Deflater.new meter
       File.open(path, 'rb'){|f| pipe_little_by_little deflater, f}
       deflater.finish
       {
@@ -426,8 +429,8 @@ module Zipping
         (dp[:deflated] ? ZS_c_ver_nocomp : ZS_c_ver_deflate),
         (dp[:deflated] ? ZS_c_opt_0708 : ZS_c_opt_none),
         (dp[:deflated] ? ZS_c_comp_deflate : ZS_c_comp_none),
-        dp[:filetime].to_binary_dos_time,
-        dp[:filetime].to_binary_dos_date,
+        dp[:filetime].dos_time,
+        dp[:filetime].dos_date,
         dp[:crc],
         dp[:complen],
         dp[:uncomplen],
@@ -448,8 +451,8 @@ module Zipping
         (deflated ? ZS_c_ver_deflate : ZS_c_ver_nocomp),
         (deflated ? ZS_c_opt_0708 : ZS_c_opt_none),
         (deflated ? ZS_c_comp_deflate : ZS_c_comp_none),
-        filetime.to_binary_dos_time,
-        filetime.to_binary_dos_date,
+        filetime.dos_time,
+        filetime.dos_date,
         (crc || ZS_c_int4_zero),
         (compsize || ZS_c_int4_zero),
         (uncompsize || ZS_c_int4_zero),
